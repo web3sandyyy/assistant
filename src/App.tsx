@@ -1,10 +1,29 @@
+import Header from "./components/Header";
 import "./App.css";
 
 function App() {
   return (
-    <div className="h-screen w-full">
-      <p>AI Job Assistant</p>
+    <div className="h-screen w-full p-2">
+      <Header />
 
+      <div>
+        sdfsdfsdfsdfsdfsdf
+        sdfsdfsdfsdfsdfsdf
+        sdfsdfsdfsdfsdfsdf
+        sdfsdfsdfsdfsdfsdf
+        sdfsdfsdfsdfsdfsdf
+        sdfsdfsdfsdfsdfsdf
+        sdfsdfsdfsdfsdfsdf
+        sdfsdfsdfsdfsdfsdf
+        sdfsdfsdfsdfsdfsdf
+        sdfsdfsdfsdfsdfsdf
+        sdfsdfsdfsdfsdfsdf
+        sdfsdfsdfsdfsdfsdf
+        sdfsdfsdfsdfsdfsdf
+        sdfsdfsdfsdfsdfsdf
+        sdfsdfsdfsdfsdfsdf
+        sdfsdfsdfsdfsdfsdf
+      </div>
     </div>
   );
 }
