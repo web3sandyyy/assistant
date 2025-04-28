@@ -7,11 +7,13 @@ const Settings = () => {
   const [resume, setResume] = useState<File | null>(null);
   const [resumeName, setResumeName] = useState<string>("");
   const [instructions, setInstructions] = useState<string>("");
+  const [isSaving, setIsSaving] = useState(false);
 
   // Load data from localStorage on component mount
   useEffect(() => {
     const savedInstructions = localStorage.getItem("applyInstructions");
     const savedResumeName = localStorage.getItem("resumeName");
+    const savedResumeContent = localStorage.getItem("resumeContent");
 
     if (savedInstructions) {
       setInstructions(savedInstructions);
@@ -19,6 +21,25 @@ const Settings = () => {
 
     if (savedResumeName) {
       setResumeName(savedResumeName);
+    }
+
+    if (savedResumeContent) {
+      // Convert base64 to File object
+      const byteString = atob(savedResumeContent.split(",")[1]);
+      const mimeString = savedResumeContent
+        .split(",")[0]
+        .split(":")[1]
+        .split(";")[0];
+      const ab = new ArrayBuffer(byteString.length);
+      const ia = new Uint8Array(ab);
+      for (let i = 0; i < byteString.length; i++) {
+        ia[i] = byteString.charCodeAt(i);
+      }
+      const blob = new Blob([ab], { type: mimeString });
+      const file = new File([blob], savedResumeName || "resume", {
+        type: mimeString,
+      });
+      setResume(file);
     }
   }, []);
 
@@ -40,26 +61,35 @@ const Settings = () => {
     }
   };
 
-  const handleSave = () => {
-    // Save resume name and instructions to localStorage
-    if (resumeName) {
-      localStorage.setItem("resumeName", resumeName);
+  const handleSave = async () => {
+    try {
+      setIsSaving(true);
+
+      // Save resume name and instructions to localStorage
+      if (resumeName) {
+        localStorage.setItem("resumeName", resumeName);
+      }
+
+      localStorage.setItem("applyInstructions", instructions);
+
+      // Store the file in localStorage as base64 if selected
+      if (resume) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          if (e.target && e.target.result) {
+            localStorage.setItem("resumeContent", e.target.result as string);
+          }
+        };
+        reader.readAsDataURL(resume);
+      }
+
+      alert("Settings saved successfully!");
+    } catch (error) {
+      console.error("Error saving settings:", error);
+      alert("Failed to save settings. Please try again.");
+    } finally {
+      setIsSaving(false);
     }
-
-    localStorage.setItem("applyInstructions", instructions);
-
-    // Store the file in localStorage as base64 if selected
-    if (resume) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        if (e.target && e.target.result) {
-          localStorage.setItem("resumeFile", e.target.result as string);
-        }
-      };
-      reader.readAsDataURL(resume);
-    }
-
-    alert("Settings saved successfully!");
   };
 
   return (
@@ -69,7 +99,7 @@ const Settings = () => {
       <div className="space-y-6 flex-1">
         <div className="space-y-2">
           <label className="block text-sm font-medium">
-            please attach your resume
+            Please attach your resume
           </label>
           <div className="relative">
             <input
@@ -91,7 +121,7 @@ const Settings = () => {
 
         <div className="space-y-2 flex-1">
           <label htmlFor="instructions" className="block text-sm font-medium">
-            Please train ai how should it apply and things to mention
+            Please train AI how should it apply and things to mention
           </label>
           <Textarea
             id="instructions"
@@ -102,8 +132,13 @@ const Settings = () => {
           />
         </div>
 
-        <Button variant="blue" className="w-full" onClick={handleSave}>
-          Save
+        <Button
+          variant="blue"
+          className="w-full"
+          onClick={handleSave}
+          disabled={isSaving}
+        >
+          {isSaving ? "Saving..." : "Save"}
         </Button>
       </div>
     </div>

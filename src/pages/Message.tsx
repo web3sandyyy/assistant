@@ -3,15 +3,18 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Textarea } from "../components/ui/textarea";
 import icon from "../assets/icon-nobg.png";
+import { OPENAI_API_KEY } from "@/config";
 
 const Message = () => {
   const [recipient, setRecipient] = useState("");
   const [platform, setPlatform] = useState("");
   const [message, setMessage] = useState("");
   const [size, setSize] = useState("mid");
+  
 
   const handleGenerate = () => {
-    console.log({ recipient, platform, message, size });
+    // console.log({ recipient, platform, message, size });
+    console.log(OPENAI_API_KEY);
   };
 
   return (

@@ -73,7 +73,13 @@ const JobApplier = () => {
       <JobDescription description={jobDetails.description} />
       <JobRequirements requirements={jobDetails.requirements} />
       <JobLinks url={jobDetails.url} websiteUrl={jobDetails.websiteUrl} />
-      <ApplicationQuestions questions={jobDetails.applicationQuestions} />
+      <ApplicationQuestions
+        questions={jobDetails.applicationQuestions}
+        jobTitle={jobDetails.title}
+        jobDescription={jobDetails.description}
+        requirements={jobDetails.requirements}
+        websiteUrl={jobDetails.websiteUrl}
+      />
     </div>
   );
 };
