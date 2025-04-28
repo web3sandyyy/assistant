@@ -1,20 +1,32 @@
 {
     "manifest_version": 3,
-    "name": "Job Assistant",
+    "name": "Job Application Assistant",
     "version": "1.0.0",
-    "description": "Job Assistant",
+    "description": "Scrapes job details from Wellfound and helps with job applications",
     "action": {
-        "default_title": "Job Assistant"
+        "default_title": "Job Application Assistant"
     },
     "side_panel": {
         "default_path": "index.html"
     },
     "permissions": [
+        "activeTab",
+        "scripting",
         "sidePanel"
     ],
     "icons": {
         "16": "icon16.png",
         "48": "icon48.png",
         "128": "icon128.png"
-    }
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "*://*.wellfound.com/*"
+            ],
+            "js": [
+                "content.js"
+            ]
+        }
+    ]
 }
