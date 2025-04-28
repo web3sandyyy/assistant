@@ -1,12 +1,12 @@
-import './App.css'
+import "./App.css";
 
 function App() {
-
   return (
-    <div>
-      hello
+    <div className="h-screen w-full">
+      <p>AI Job Assistant</p>
+
     </div>
-  )
+  );
 }
 
-export default App
+export default App;

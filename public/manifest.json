@@ -1,0 +1,20 @@
+{
+    "manifest_version": 3,
+    "name": "Job Assistant",
+    "version": "1.0.0",
+    "description": "Job Assistant",
+    "action": {
+        "default_title": "Job Assistant"
+    },
+    "side_panel": {
+        "default_path": "index.html"
+    },
+    "permissions": [
+        "sidePanel"
+    ],
+    "icons": {
+        "16": "icon16.png",
+        "48": "icon48.png",
+        "128": "icon128.png"
+    }
+}

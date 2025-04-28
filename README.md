@@ -52,3 +52,47 @@ export default tseslint.config({
   },
 })
 ```
+
+# Chrome Sidebar Extension
+
+A simple Chrome sidebar extension built with React and Vite.
+
+## Development
+
+```
+npm install
+npm run dev
+```
+
+## Building the Extension
+
+```
+npm run build
+```
+
+This will create a `dist` folder with the built extension.
+
+## Loading the Extension in Chrome
+
+1. Open Chrome and navigate to `chrome://extensions/`
+2. Enable "Developer mode" by toggling the switch in the top right corner
+3. Click "Load unpacked" and select the `dist` folder
+4. The extension should now be loaded
+
+## Using the Sidebar Extension
+
+1. Click on the extension icon in your toolbar
+2. Click "Open side panel" from the popup
+3. The sidebar will open on the right side of your browser
+
+## Features
+
+- Simple sidebar UI
+- Navigation buttons
+- Custom styling
+
+## Customization
+
+- Modify `src/App.tsx` to change the sidebar content
+- Update `src/App.css` for styling
+- Edit `public/manifest.json` to change extension metadata
