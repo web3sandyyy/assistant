@@ -6,6 +6,7 @@ function extractJobDetails() {
     requirements: [],
     url: window.location.href,
     websiteUrl: "",
+    applicationQuestions: [],
   };
 
   // Extract job title
@@ -41,6 +42,20 @@ function extractJobDetails() {
     jobDetails.websiteUrl = websiteUrl.startsWith("http")
       ? websiteUrl
       : `https://${websiteUrl}`;
+  }
+
+  // Extract application questions from the modal
+  const modal = document.querySelector('[data-test="JobApplication-Modal"]');
+  if (modal) {
+    const questionElements = modal.querySelectorAll(".mb-2 label");
+    questionElements.forEach((element) => {
+      const questionText = element
+        .querySelector(".text-dark-aaaa.text-md.font-medium")
+        ?.textContent.trim();
+      if (questionText) {
+        jobDetails.applicationQuestions.push(questionText);
+      }
+    });
   }
 
   return jobDetails;
