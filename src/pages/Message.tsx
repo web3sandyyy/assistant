@@ -1,31 +1,368 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Textarea } from "../components/ui/textarea";
 import icon from "../assets/icon-nobg.png";
 import { OPENAI_API_KEY } from "@/config";
+import { Loader2, RefreshCw } from "lucide-react";
+
+type MessageSize = "small" | "mid" | "large";
+
+// Smart content truncation functions
+const truncateResumeContent = (resume: string): string => {
+  if (resume.length <= 1000) return resume;
+
+  // Split resume into sections
+  const sections = resume.split(/\n\s*\n/);
+
+  // Prioritize sections that might be most relevant for a message
+  const priorityKeywords = [
+    "experience",
+    "skills",
+    "summary",
+    "objective",
+    "about",
+    "profile",
+  ];
+
+  // Score sections based on relevance
+  const scoredSections = sections.map((section) => {
+    let score = 0;
+    const sectionLower = section.toLowerCase();
+
+    priorityKeywords.forEach((keyword) => {
+      if (sectionLower.includes(keyword)) score += 2;
+    });
+
+    // Prioritize shorter sections as they're likely more focused
+    score += Math.max(0, 5 - section.length / 200);
+
+    return { section, score };
+  });
+
+  // Sort by score and take top sections
+  scoredSections.sort((a, b) => b.score - a.score);
+
+  let result = "";
+  for (const { section } of scoredSections) {
+    if ((result + section).length <= 1000) {
+      result += section + "\n\n";
+    } else {
+      break;
+    }
+  }
+
+  return result || resume.substring(0, 1000) + "...";
+};
+
+const truncateInstructions = (instructions: string): string => {
+  if (instructions.length <= 300) return instructions;
+
+  // Split into sentences
+  const sentences = instructions.split(/[.!?]\s+/);
+
+  // Score sentences based on specificity
+  const scoredSentences = sentences.map((sentence) => {
+    let score = 0;
+
+    // Prioritize sentences with specific keywords
+    const specificKeywords = [
+      "must",
+      "should",
+      "always",
+      "never",
+      "specific",
+      "example",
+    ];
+    specificKeywords.forEach((keyword) => {
+      if (sentence.toLowerCase().includes(keyword)) score += 2;
+    });
+
+    // Prioritize shorter sentences
+    score += Math.max(0, 3 - sentence.length / 50);
+
+    return { sentence, score };
+  });
+
+  // Sort by score and take top sentences
+  scoredSentences.sort((a, b) => b.score - a.score);
+
+  let result = "";
+  for (const { sentence } of scoredSentences) {
+    if ((result + sentence).length <= 300) {
+      result += sentence + ". ";
+    } else {
+      break;
+    }
+  }
+
+  return result || instructions.substring(0, 300) + "...";
+};
 
 const Message = () => {
   const [recipient, setRecipient] = useState("");
   const [platform, setPlatform] = useState("");
   const [message, setMessage] = useState("");
-  const [size, setSize] = useState("mid");
-  
+  const [size, setSize] = useState<MessageSize>("mid");
+  const [generatedMessage, setGeneratedMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [initializedData, setInitializedData] = useState<{
+    resumeContent: string;
+    instructions: string;
+  } | null>(null);
+  const [regeneratePrompt, setRegeneratePrompt] = useState("");
+  const [isRegenerating, setIsRegenerating] = useState(false);
 
-  const handleGenerate = () => {
-    // console.log({ recipient, platform, message, size });
-    console.log(OPENAI_API_KEY);
+  // Initialize data when component mounts
+  useEffect(() => {
+    const initializeData = () => {
+      const resumeContent = localStorage.getItem("resumeContent") || "";
+      const instructions = localStorage.getItem("applyInstructions") || "";
+
+      if (resumeContent || instructions) {
+        setInitializedData({
+          resumeContent: truncateResumeContent(resumeContent),
+          instructions: truncateInstructions(instructions),
+        });
+      }
+    };
+
+    initializeData();
+  }, []);
+
+  const getSizeInstructions = (size: MessageSize): string => {
+    switch (size) {
+      case "small":
+        return "Please provide a concise message in 2-3 sentences.";
+      case "mid":
+        return "Please provide a detailed message in 4-6 sentences.";
+      case "large":
+        return "Please provide a comprehensive message in 7-10 sentences.";
+      default:
+        return "Please provide a detailed message in 4-6 sentences.";
+    }
   };
 
+  const getPlatformInstructions = (platform: string): string => {
+    const platformLower = platform.toLowerCase();
+
+    if (platformLower.includes("linkedin")) {
+      return "Write in a professional LinkedIn style, highlighting your professional background and interest in the position.";
+    } else if (platformLower.includes("email")) {
+      return "Write in a formal email style with a clear subject line suggestion and proper email formatting.";
+    } else if (
+      platformLower.includes("twitter") ||
+      platformLower.includes("x")
+    ) {
+      return "Write in a concise Twitter style, keeping it brief and engaging.";
+    } else if (
+      platformLower.includes("whatsapp") ||
+      platformLower.includes("message")
+    ) {
+      return "Write in a conversational but professional style suitable for messaging apps.";
+    } else {
+      return "Write in a professional tone appropriate for business communication.";
+    }
+  };
+
+  const handleGenerate = async () => {
+    if (!recipient || !platform || !message) {
+      setError("Please fill in all fields");
+      return;
+    }
+
+    if (!initializedData) {
+      setError("Please upload your resume first");
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const response = await fetch(
+        "https://api.openai.com/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${OPENAI_API_KEY}`,
+          },
+          body: JSON.stringify({
+            model: "gpt-4",
+            messages: [
+              {
+                role: "system",
+                content: `You are an AI assistant helping to generate job application messages.
+              Use the provided resume content and instructions to tailor your response.
+              ${getSizeInstructions(size)}
+              ${getPlatformInstructions(platform)}
+              Be professional and confident in your tone.
+              If this is for a specific job application, highlight relevant experience and skills.`,
+              },
+              {
+                role: "user",
+                content: `Recipient: ${recipient}
+              
+Platform: ${platform}
+
+Message Intent: ${message}
+
+Resume Content: ${initializedData.resumeContent}
+
+Additional Instructions: ${initializedData.instructions}
+
+Please generate a tailored message based on the above information.`,
+              },
+            ],
+            temperature: 0.7,
+            max_tokens: 1000,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        if (response.status === 429) {
+          throw new Error(
+            "Rate limit exceeded. Please try again in a few minutes."
+          );
+        }
+        throw new Error(
+          `API request failed: ${
+            errorData.error?.message || response.statusText
+          }`
+        );
+      }
+
+      const data = await response.json();
+      setGeneratedMessage(data.choices[0].message.content);
+    } catch (error) {
+      console.error("Error generating message:", error);
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Failed to generate message. Please try again."
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRegenerateWithPrompt = async () => {
+    if (!initializedData) {
+      setError("Please upload your resume first");
+      return;
+    }
+
+    if (!regeneratePrompt.trim()) {
+      setError("Please enter a prompt for regeneration");
+      return;
+    }
+
+    try {
+      setIsRegenerating(true);
+      setError(null);
+
+      const response = await fetch(
+        "https://api.openai.com/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${OPENAI_API_KEY}`,
+          },
+          body: JSON.stringify({
+            model: "gpt-4",
+            messages: [
+              {
+                role: "system",
+                content: `You are an AI assistant helping to generate job application messages.
+              Use the provided resume content and instructions to tailor your response.
+              ${getSizeInstructions(size)}
+              ${getPlatformInstructions(platform)}
+              Be professional and confident in your tone.
+              If this is for a specific job application, highlight relevant experience and skills.
+              
+              Regeneration prompt: ${regeneratePrompt}`,
+              },
+              {
+                role: "user",
+                content: `Recipient: ${recipient}
+              
+Platform: ${platform}
+
+Message Intent: ${message}
+
+Resume Content: ${initializedData.resumeContent}
+
+Additional Instructions: ${initializedData.instructions}
+
+Please generate a tailored message based on the above information.`,
+              },
+            ],
+            temperature: 0.7,
+            max_tokens: 1000,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        if (response.status === 429) {
+          throw new Error(
+            "Rate limit exceeded. Please try again in a few minutes."
+          );
+        }
+        throw new Error(
+          `API request failed: ${
+            errorData.error?.message || response.statusText
+          }`
+        );
+      }
+
+      const data = await response.json();
+      setGeneratedMessage(data.choices[0].message.content);
+    } catch (error) {
+      console.error("Error regenerating message:", error);
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Failed to regenerate message. Please try again."
+      );
+    } finally {
+      setIsRegenerating(false);
+    }
+  };
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(generatedMessage);
+    alert("Message copied to clipboard!");
+  };
+
+  // const truncateJobDescription = (text: string, maxLength: number = 500) => {
+  //   if (text.length <= maxLength) return text;
+  //   return text.substring(0, maxLength) + "...";
+  // };
+
   return (
-    <div className=" mx-auto p-2 flex flex-col h-full">
+    <div className="mx-auto p-2 flex flex-col h-full">
       <div className="flex justify-center items-center mb-4">
         <img src={icon} alt="icon" className="w-12 h-12" />
-        <h1 className="text-xl font-semibold text-center italic">Job Assistant</h1>
+        <h1 className="text-xl font-semibold text-center italic">
+          Job Assistant
+        </h1>
       </div>
 
       <div className="flex flex-col gap-4 flex-1">
-        <h2 className="text-lg font-medium">Generate a application msg</h2>
+        <h2 className="text-lg font-medium">Generate an application message</h2>
+
+        {!initializedData && (
+          <div className="text-yellow-600 bg-yellow-50 p-3 rounded-lg">
+            Please upload your resume first to generate messages.
+          </div>
+        )}
 
         <div className="space-y-2">
           <label htmlFor="recipient" className="block text-sm font-medium">
@@ -35,7 +372,7 @@ const Message = () => {
             id="recipient"
             value={recipient}
             onChange={(e) => setRecipient(e.target.value)}
-            placeholder="Enter recipient"
+            placeholder="e.g., CEO John, HR Manager Sarah"
           />
         </div>
 
@@ -47,53 +384,104 @@ const Message = () => {
             id="platform"
             value={platform}
             onChange={(e) => setPlatform(e.target.value)}
-            placeholder="linkedin, email, twitter message"
+            placeholder="LinkedIn, Email, Twitter, WhatsApp, etc."
           />
         </div>
 
         <div className="space-y-2 flex-1">
           <label htmlFor="message" className="block text-sm font-medium">
-            Your intent / job application - etc
+            Your intent / job application details
           </label>
           <Textarea
             id="message"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            placeholder="Enter your message details"
+            placeholder="Describe your intent, the job you're applying for, and any specific points you want to include"
             className="min-h-[120px]"
           />
         </div>
 
         <div className="space-y-2">
-          <label className="block text-sm font-medium">size</label>
+          <label className="block text-sm font-medium">Message Size</label>
           <div className="flex gap-2">
             <Button
               variant={size === "small" ? "yellow" : "outline"}
               onClick={() => setSize("small")}
               className="flex-1"
             >
-              small
+              Small
             </Button>
             <Button
               variant={size === "mid" ? "yellow" : "outline"}
               onClick={() => setSize("mid")}
               className="flex-1"
             >
-              mid
+              Medium
             </Button>
             <Button
               variant={size === "large" ? "yellow" : "outline"}
               onClick={() => setSize("large")}
               className="flex-1"
             >
-              large
+              Large
             </Button>
           </div>
         </div>
 
-        <Button variant="blue" className="w-full" onClick={handleGenerate}>
-          Generate
+        {error && <div className="text-red-500 text-sm">{error}</div>}
+
+        <Button
+          variant="blue"
+          className="w-full"
+          onClick={handleGenerate}
+          disabled={isLoading || !initializedData}
+        >
+          {isLoading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Generating...
+            </>
+          ) : (
+            "Generate Message"
+          )}
         </Button>
+
+        {generatedMessage && (
+          <div className="mt-4 space-y-2">
+            <h3 className="text-lg font-medium">Generated Message</h3>
+            <div className="bg-gray-50 p-4 rounded-lg whitespace-pre-wrap">
+              {generatedMessage}
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={handleCopy}>
+                Copy to Clipboard
+              </Button>
+            </div>
+            <div className="mt-2 space-y-2">
+              <div className="text-sm font-medium">Regenerate with prompt:</div>
+              <div className="flex gap-2">
+                <Textarea
+                  value={regeneratePrompt}
+                  onChange={(e) => setRegeneratePrompt(e.target.value)}
+                  placeholder="Enter instructions for regeneration (e.g., 'Make it more formal', 'Focus on my leadership skills')"
+                  className="min-h-[60px] flex-1"
+                />
+                <Button
+                  variant="outline"
+                  onClick={handleRegenerateWithPrompt}
+                  disabled={isRegenerating}
+                  className="flex-shrink-0"
+                >
+                  {isRegenerating ? (
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

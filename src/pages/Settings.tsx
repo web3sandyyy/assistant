@@ -1,87 +1,78 @@
 import { useState, useEffect } from "react";
 import { Button } from "../components/ui/button";
 import { Textarea } from "../components/ui/textarea";
-import { Upload } from "lucide-react";
+
+interface ResumeData {
+  aboutMe: string;
+  professionalExperience: string;
+  projects: string;
+  skills: string;
+  additionalInstructions: string;
+}
 
 const Settings = () => {
-  const [resume, setResume] = useState<File | null>(null);
-  const [resumeName, setResumeName] = useState<string>("");
-  const [instructions, setInstructions] = useState<string>("");
+  const [resumeData, setResumeData] = useState<ResumeData>({
+    aboutMe: "",
+    professionalExperience: "",
+    projects: "",
+    skills: "",
+    additionalInstructions: "",
+  });
   const [isSaving, setIsSaving] = useState(false);
 
   // Load data from localStorage on component mount
   useEffect(() => {
+    const savedResumeData = localStorage.getItem("resumeData");
     const savedInstructions = localStorage.getItem("applyInstructions");
-    const savedResumeName = localStorage.getItem("resumeName");
-    const savedResumeContent = localStorage.getItem("resumeContent");
+
+    if (savedResumeData) {
+      setResumeData((prevData) => ({
+        ...prevData,
+        ...JSON.parse(savedResumeData),
+      }));
+    }
 
     if (savedInstructions) {
-      setInstructions(savedInstructions);
-    }
-
-    if (savedResumeName) {
-      setResumeName(savedResumeName);
-    }
-
-    if (savedResumeContent) {
-      // Convert base64 to File object
-      const byteString = atob(savedResumeContent.split(",")[1]);
-      const mimeString = savedResumeContent
-        .split(",")[0]
-        .split(":")[1]
-        .split(";")[0];
-      const ab = new ArrayBuffer(byteString.length);
-      const ia = new Uint8Array(ab);
-      for (let i = 0; i < byteString.length; i++) {
-        ia[i] = byteString.charCodeAt(i);
-      }
-      const blob = new Blob([ab], { type: mimeString });
-      const file = new File([blob], savedResumeName || "resume", {
-        type: mimeString,
-      });
-      setResume(file);
+      setResumeData((prevData) => ({
+        ...prevData,
+        additionalInstructions: savedInstructions,
+      }));
     }
   }, []);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      // Check if file is PDF or DOC/DOCX
-      if (
-        file.type === "application/pdf" ||
-        file.type === "application/msword" ||
-        file.type ===
-          "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-      ) {
-        setResume(file);
-        setResumeName(file.name);
-      } else {
-        alert("Please upload a PDF or Word document");
-      }
-    }
+  const handleInputChange = (field: keyof ResumeData, value: string) => {
+    setResumeData((prevData) => ({
+      ...prevData,
+      [field]: value,
+    }));
   };
 
   const handleSave = async () => {
     try {
       setIsSaving(true);
 
-      // Save resume name and instructions to localStorage
-      if (resumeName) {
-        localStorage.setItem("resumeName", resumeName);
-      }
+      // Combine all resume sections into a formatted string
+      const formattedResume = `
+About Me:
+${resumeData.aboutMe}
 
-      localStorage.setItem("applyInstructions", instructions);
+Professional Experience:
+${resumeData.professionalExperience}
 
-      // Store the file in localStorage as base64 if selected
-      if (resume) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          if (e.target && e.target.result) {
-            localStorage.setItem("resumeContent", e.target.result as string);
-          }
-        };
-        reader.readAsDataURL(resume);
-      }
+Projects:
+${resumeData.projects}
+
+Skills:
+${resumeData.skills}
+      `.trim();
+
+      // Save formatted resume and individual sections
+      localStorage.setItem("resumeContent", formattedResume);
+      localStorage.setItem("resumeData", JSON.stringify(resumeData));
+      localStorage.setItem(
+        "applyInstructions",
+        resumeData.additionalInstructions
+      );
 
       alert("Settings saved successfully!");
     } catch (error) {
@@ -93,42 +84,65 @@ const Settings = () => {
   };
 
   return (
-    <div className="container max-w-md mx-auto p-4 flex flex-col h-full">
-      <h1 className="text-xl font-semibold mb-6">Settings</h1>
+    <div className="container max-w-2xl mx-auto p-4 flex flex-col h-full">
+      <h1 className="text-xl font-semibold mb-6">Resume Settings</h1>
 
       <div className="space-y-6 flex-1">
         <div className="space-y-2">
-          <label className="block text-sm font-medium">
-            Please attach your resume
-          </label>
-          <div className="relative">
-            <input
-              type="file"
-              accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-              onChange={handleFileChange}
-              className="hidden"
-              id="resume-upload"
-            />
-            <label
-              htmlFor="resume-upload"
-              className="cursor-pointer flex items-center justify-center gap-2 w-full h-12 rounded-md border border-input bg-background px-3 py-2 text-sm hover:bg-accent"
-            >
-              {resumeName ? resumeName : "Please select your resume"}
-              <Upload size={16} />
-            </label>
-          </div>
+          <label className="block text-sm font-medium">About Me</label>
+          <Textarea
+            value={resumeData.aboutMe}
+            onChange={(e) => handleInputChange("aboutMe", e.target.value)}
+            placeholder="Write a brief introduction about yourself, your career objectives, and what makes you unique..."
+            className="min-h-[100px]"
+          />
         </div>
 
-        <div className="space-y-2 flex-1">
-          <label htmlFor="instructions" className="block text-sm font-medium">
-            Please train AI how should it apply and things to mention
+        <div className="space-y-2">
+          <label className="block text-sm font-medium">
+            Professional Experience
           </label>
           <Textarea
-            id="instructions"
-            value={instructions}
-            onChange={(e) => setInstructions(e.target.value)}
-            placeholder="Enter instructions for how AI should apply and what to highlight from your resume"
-            className="min-h-[180px]"
+            value={resumeData.professionalExperience}
+            onChange={(e) =>
+              handleInputChange("professionalExperience", e.target.value)
+            }
+            placeholder="List your work experience with company names, dates, and key achievements..."
+            className="min-h-[200px]"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <label className="block text-sm font-medium">Projects</label>
+          <Textarea
+            value={resumeData.projects}
+            onChange={(e) => handleInputChange("projects", e.target.value)}
+            placeholder="Describe your notable projects, including technologies used and outcomes achieved..."
+            className="min-h-[150px]"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <label className="block text-sm font-medium">Skills</label>
+          <Textarea
+            value={resumeData.skills}
+            onChange={(e) => handleInputChange("skills", e.target.value)}
+            placeholder="List your technical skills, tools, programming languages, and other relevant abilities..."
+            className="min-h-[100px]"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <label className="block text-sm font-medium">
+            Additional Instructions for AI
+          </label>
+          <Textarea
+            value={resumeData.additionalInstructions}
+            onChange={(e) =>
+              handleInputChange("additionalInstructions", e.target.value)
+            }
+            placeholder="Provide specific instructions on how the AI should use your information when generating responses..."
+            className="min-h-[100px]"
           />
         </div>
 
@@ -138,8 +152,26 @@ const Settings = () => {
           onClick={handleSave}
           disabled={isSaving}
         >
-          {isSaving ? "Saving..." : "Save"}
+          {isSaving ? "Saving..." : "Save Resume Data"}
         </Button>
+
+        {/* Preview Section */}
+        <div className="mt-8 p-4 border rounded-lg bg-gray-50">
+          <h2 className="text-lg font-medium mb-4">Resume Preview</h2>
+          <pre className="whitespace-pre-wrap text-sm">
+            {`About Me:
+${resumeData.aboutMe}
+
+Professional Experience:
+${resumeData.professionalExperience}
+
+Projects:
+${resumeData.projects}
+
+Skills:
+${resumeData.skills}`}
+          </pre>
+        </div>
       </div>
     </div>
   );

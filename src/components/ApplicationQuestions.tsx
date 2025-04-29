@@ -1,14 +1,19 @@
 import { useState } from "react";
-import { generateAnswer, AnswerLength } from "../services/chatgpt";
 import { Button } from "./ui/button";
-import { Loader2 } from "lucide-react";
+import { Textarea } from "./ui/textarea";
+import { Loader2, RefreshCw } from "lucide-react";
+import { generateAnswer } from "../services/chatgpt";
 
 interface ApplicationQuestionsProps {
   questions: string[];
   jobTitle: string;
   jobDescription: string;
   requirements: string[];
-  websiteUrl?: string;
+  websiteUrl: string;
+  initializedData?: {
+    resumeContent: string;
+    instructions: string;
+  } | null;
 }
 
 export const ApplicationQuestions = ({
@@ -17,18 +22,27 @@ export const ApplicationQuestions = ({
   jobDescription,
   requirements,
   websiteUrl,
+  initializedData,
 }: ApplicationQuestionsProps) => {
-  const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState<Record<string, boolean>>({});
-  const [selectedLength, setSelectedLength] = useState<AnswerLength>("medium");
+  const [answers, setAnswers] = useState<{ [key: string]: string }>({});
+  const [loading, setLoading] = useState<{ [key: string]: boolean }>({});
+  const [error, setError] = useState<{ [key: string]: string }>({});
+  const [regeneratePrompts, setRegeneratePrompts] = useState<{
+    [key: string]: string;
+  }>({});
+  const [isRegenerating, setIsRegenerating] = useState<{
+    [key: string]: boolean;
+  }>({});
 
   const handleGenerateAnswer = async (question: string) => {
-    try {
-      setLoading((prev) => ({ ...prev, [question]: true }));
+    if (!initializedData) {
+      setError({ [question]: "Please upload your resume first" });
+      return;
+    }
 
-      // Get resume content and instructions from localStorage
-      const resumeContent = localStorage.getItem("resumeContent") || "";
-      const instructions = localStorage.getItem("applyInstructions") || "";
+    try {
+      setLoading({ ...loading, [question]: true });
+      setError({ ...error, [question]: "" });
 
       const answer = await generateAnswer({
         jobTitle,
@@ -36,81 +50,150 @@ export const ApplicationQuestions = ({
         requirements,
         companyWebsite: websiteUrl,
         question,
-        resumeContent,
-        instructions,
-        answerLength: selectedLength,
+        resumeContent: initializedData.resumeContent,
+        instructions: initializedData.instructions,
+        answerLength: "medium",
       });
 
-      setAnswers((prev) => ({ ...prev, [question]: answer }));
-    } catch (error) {
-      console.error("Error generating answer:", error);
-      alert("Failed to generate answer. Please try again.");
+      setAnswers({ ...answers, [question]: answer });
+    } catch (err) {
+      setError({
+        ...error,
+        [question]:
+          err instanceof Error ? err.message : "Failed to generate answer",
+      });
     } finally {
-      setLoading((prev) => ({ ...prev, [question]: false }));
+      setLoading({ ...loading, [question]: false });
     }
   };
 
-  if (questions.length === 0) {
+  const handleRegenerateWithPrompt = async (question: string) => {
+    if (!initializedData) {
+      setError({ [question]: "Please upload your resume first" });
+      return;
+    }
+
+    if (!regeneratePrompts[question]?.trim()) {
+      setError({ [question]: "Please enter a prompt for regeneration" });
+      return;
+    }
+
+    try {
+      setIsRegenerating({ ...isRegenerating, [question]: true });
+      setError({ ...error, [question]: "" });
+
+      const answer = await generateAnswer({
+        jobTitle,
+        jobDescription,
+        requirements,
+        companyWebsite: websiteUrl,
+        question,
+        resumeContent: initializedData.resumeContent,
+        instructions: `${initializedData.instructions}\n\nRegeneration prompt: ${regeneratePrompts[question]}`,
+        answerLength: "medium",
+      });
+
+      setAnswers({ ...answers, [question]: answer });
+    } catch (err) {
+      setError({
+        ...error,
+        [question]:
+          err instanceof Error ? err.message : "Failed to regenerate answer",
+      });
+    } finally {
+      setIsRegenerating({ ...isRegenerating, [question]: false });
+    }
+  };
+
+  const handleCopyAnswer = (answer: string) => {
+    navigator.clipboard.writeText(answer);
+    alert("Answer copied to clipboard!");
+  };
+
+  if (!questions.length) {
     return (
-      <div className="text-gray-500 mb-4">No application questions found.</div>
+      <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+        <p className="text-gray-500">No application questions found.</p>
+      </div>
     );
   }
 
   return (
-    <div className="space-y-4 mt-6">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-lg font-semibold">Application Questions</h2>
-        <div className="flex gap-2">
-          <Button
-            variant={selectedLength === "small" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setSelectedLength("small")}
-          >
-            Small
-          </Button>
-          <Button
-            variant={selectedLength === "medium" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setSelectedLength("medium")}
-          >
-            Medium
-          </Button>
-          <Button
-            variant={selectedLength === "large" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setSelectedLength("large")}
-          >
-            Large
-          </Button>
-        </div>
-      </div>
-
+    <div className="mt-4 space-y-4">
+      <h3 className="text-lg font-medium">Application Questions</h3>
       {questions.map((question, index) => (
-        <div key={index} className="bg-gray-50 p-4 rounded-lg">
-          <p className="font-medium text-gray-700 mb-2">{question}</p>
-          <textarea
-            className="w-full p-3 border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-blue-500 mb-2"
-            rows={4}
-            placeholder="Type your answer here..."
-            value={answers[question] || ""}
-            onChange={(e) =>
-              setAnswers((prev) => ({ ...prev, [question]: e.target.value }))
-            }
-          />
-          <Button
-            onClick={() => handleGenerateAnswer(question)}
-            disabled={loading[question]}
-            className="w-full"
-          >
-            {loading[question] ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Generating...
-              </>
-            ) : (
-              "Generate Answer"
+        <div key={index} className="space-y-2">
+          <div className="font-medium text-gray-700">{question}</div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => handleGenerateAnswer(question)}
+              disabled={loading[question]}
+              className="flex-1"
+            >
+              {loading[question] ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                "Generate Answer"
+              )}
+            </Button>
+            {answers[question] && (
+              <Button
+                variant="outline"
+                onClick={() => handleCopyAnswer(answers[question])}
+                className="flex-1"
+              >
+                Copy Answer
+              </Button>
             )}
-          </Button>
+          </div>
+          {error[question] && (
+            <div className="text-red-500 text-sm">{error[question]}</div>
+          )}
+          {answers[question] && (
+            <>
+              <Textarea
+                value={answers[question]}
+                onChange={(e) =>
+                  setAnswers({ ...answers, [question]: e.target.value })
+                }
+                className="min-h-[100px]"
+              />
+              <div className="mt-2 space-y-2">
+                <div className="text-sm font-medium">
+                  Regenerate with prompt:
+                </div>
+                <div className="flex gap-2">
+                  <Textarea
+                    value={regeneratePrompts[question] || ""}
+                    onChange={(e) =>
+                      setRegeneratePrompts({
+                        ...regeneratePrompts,
+                        [question]: e.target.value,
+                      })
+                    }
+                    placeholder="Enter instructions for regeneration (e.g., 'Make it more formal', 'Focus on my leadership skills')"
+                    className="min-h-[60px] flex-1"
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={() => handleRegenerateWithPrompt(question)}
+                    disabled={isRegenerating[question]}
+                    className="flex-shrink-0"
+                  >
+                    {isRegenerating[question] ? (
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       ))}
     </div>

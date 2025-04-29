@@ -1,4 +1,5 @@
 import { OPENAI_API_KEY } from "@/config";
+
 export type AnswerLength = "small" | "medium" | "large";
 
 interface GenerateAnswerParams {
@@ -25,10 +26,16 @@ const getLengthInstructions = (length: AnswerLength): string => {
   }
 };
 
-// Function to truncate text to a maximum number of characters
-const truncateText = (text: string, maxLength: number = 2000): string => {
-  if (text.length <= maxLength) return text;
-  return text.substring(0, maxLength) + "...";
+// Simple truncation function for resume content
+const truncateResumeContent = (resume: string): string => {
+  if (resume.length <= 1000) return resume;
+  return resume.substring(0, 1000) + "...";
+};
+
+// Simple truncation function for instructions
+const truncateInstructions = (instructions: string): string => {
+  if (instructions.length <= 300) return instructions;
+  return instructions.substring(0, 300) + "...";
 };
 
 export const generateAnswer = async ({
@@ -42,10 +49,12 @@ export const generateAnswer = async ({
   answerLength,
 }: GenerateAnswerParams): Promise<string> => {
   try {
-    // Truncate long texts to reduce token count
-    const truncatedResume = truncateText(resumeContent, 1500);
-    const truncatedDescription = truncateText(jobDescription, 1000);
-    const truncatedInstructions = truncateText(instructions, 500);
+    // Use simple truncation
+    const truncatedResume = truncateResumeContent(resumeContent);
+    const truncatedInstructions = truncateInstructions(instructions);
+
+    // Limit requirements to first 10
+    const limitedRequirements = requirements.slice(0, 10);
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -68,9 +77,9 @@ export const generateAnswer = async ({
             role: "user",
             content: `Job Title: ${jobTitle}
             
-Job Description: ${truncatedDescription}
+Job Description: ${jobDescription}
 
-Required Skills: ${requirements.slice(0, 10).join(", ")}
+Required Skills: ${limitedRequirements.join(", ")}
 
 ${companyWebsite ? `Company Website: ${companyWebsite}` : ""}
 
