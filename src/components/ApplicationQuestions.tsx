@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
-import { Loader2, RefreshCw } from "lucide-react";
+import { Loader2, RefreshCw, Plus } from "lucide-react";
 import { generateAnswer } from "../services/chatgpt";
+import { Input } from "./ui/input";
 
 interface ApplicationQuestionsProps {
   questions: string[];
@@ -17,13 +18,15 @@ interface ApplicationQuestionsProps {
 }
 
 export const ApplicationQuestions = ({
-  questions,
+  questions: initialQuestions,
   jobTitle,
   jobDescription,
   requirements,
   websiteUrl,
   initializedData,
 }: ApplicationQuestionsProps) => {
+  const [questions, setQuestions] = useState<string[]>(initialQuestions);
+  const [newQuestion, setNewQuestion] = useState("");
   const [answers, setAnswers] = useState<{ [key: string]: string }>({});
   const [loading, setLoading] = useState<{ [key: string]: boolean }>({});
   const [error, setError] = useState<{ [key: string]: string }>({});
@@ -33,6 +36,20 @@ export const ApplicationQuestions = ({
   const [isRegenerating, setIsRegenerating] = useState<{
     [key: string]: boolean;
   }>({});
+
+  const handleAddQuestion = () => {
+    if (newQuestion.trim()) {
+      setQuestions([...questions, newQuestion.trim()]);
+      setNewQuestion("");
+    }
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleAddQuestion();
+    }
+  };
 
   const handleGenerateAnswer = async (question: string) => {
     if (!initializedData) {
@@ -121,6 +138,31 @@ export const ApplicationQuestions = ({
   return (
     <div className="mt-4 space-y-4">
       <h3 className="text-lg font-medium">Application Questions</h3>
+
+      {/* Add Custom Question Form */}
+      <div className="space-y-2 p-4 bg-gray-50 rounded-lg">
+        <div className="text-sm font-medium text-gray-700">
+          Add Custom Question
+        </div>
+        <div className="flex gap-2">
+          <Input
+            value={newQuestion}
+            onChange={(e) => setNewQuestion(e.target.value)}
+            onKeyPress={handleKeyPress}
+            placeholder="Type your question here..."
+            className="flex-1"
+          />
+          <Button
+            variant="outline"
+            onClick={handleAddQuestion}
+            disabled={!newQuestion.trim()}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add
+          </Button>
+        </div>
+      </div>
+
       {questions.map((question, index) => (
         <div key={index} className="space-y-2">
           <div className="font-medium text-gray-700">{question}</div>
